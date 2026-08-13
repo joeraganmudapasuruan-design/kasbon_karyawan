@@ -174,9 +174,9 @@ function pasangSemua() {
     laporan.push('- ' + cfg.sheet + ': kalender terpasang di "' + cfg.judulTanggal +
                  '", ' + dibersihkan + ' sel dirapikan.');
 
-    // ---- 3: aturan Jaminan merah (khusus yang pasangMerah) ----
+    // ---- 3: warnai Jaminan merah langsung (khusus yang pasangMerah) ----
     if (cfg.pasangMerah) {
-      var pesan = pasangJaminanMerah(sh, cfg);
+      var pesan = warnaiSemuaJaminan(sh, cfg);
       laporan.push('- ' + cfg.sheet + ': ' + pesan);
     }
   }
@@ -199,30 +199,16 @@ function pasangSemua() {
                                '\n\nSemua otomatis sekarang aktif.');
 }
 
-/** Pasang ulang conditional formatting merah untuk kolom Jaminan. */
-function pasangJaminanMerah(sh, cfg) {
-  var kolNama = cariKolom(sh, cfg.barisJudul, cfg.judulPemicu);
-  var kolJns  = cariKolom(sh, cfg.barisJudul, cfg.judulJenis);
-  var kolNom  = cariKolom(sh, cfg.barisJudul, cfg.judulNominal);
-  var kolJam  = cariKolom(sh, cfg.barisJudul, cfg.judulJaminan);
-  if (!kolNama || !kolJns || !kolNom || !kolJam) {
-    return 'aturan merah DILEWATI (ada kolom yang tidak ketemu).';
-  }
+/** TRUE bila baris ini melanggar: Kasbon >= batas tapi jaminan kosong/-/Tidak Ada. */
+function langgarJaminan(jenis, nominal, jaminan) {
+  var j = String(jaminan).trim();
+  var kosong = (j === '' || j === '-' || j === 'Tidak Ada');
+  var nom = Number(nominal);
+  return String(jenis).trim() === 'Kasbon' && !isNaN(nom) && nom >= BATAS_JAMINAN && kosong;
+}
 
-  var LNama = hurufKolom(kolNama);
-  var LJns  = hurufKolom(kolJns);
-  var LNom  = hurufKolom(kolNom);
-  var LJam  = hurufKolom(kolJam);
-  var top   = cfg.barisMulai;   // 6
-  var bot   = cfg.barisAkhir;   // 500
-
-  // Merah bila: baris ini Kasbon, nominalnya >= batas, dan jaminan kosong/-/Tidak Ada.
-  var formula = '=AND($' + LJns + top + '="Kasbon",$' + LNom + top + '>=' + BATAS_JAMINAN +
-                ',OR($' + LJam + top + '="",$' + LJam + top + '="-",$' + LJam + top + '="Tidak Ada"))';
-
-  var rentang = sh.getRange(top, kolJam, bot - top + 1, 1);
-
-  // buang aturan lama yang menyentuh kolom Jaminan, lalu pasang yang baru
+/** Buang aturan pemformatan bersyarat lama yang menyentuh kolom Jaminan. */
+function buangCFJaminan(sh, kolJam) {
   var lama = sh.getConditionalFormatRules();
   var simpan = [];
   for (var i = 0; i < lama.length; i++) {
@@ -233,18 +219,70 @@ function pasangJaminanMerah(sh, cfg) {
     }
     if (!sentuh) simpan.push(lama[i]);
   }
-
-  var aturan = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(formula)
-    .setBackground(WARNA_MERAH_BG)
-    .setFontColor(WARNA_MERAH_TXT)
-    .setRanges([rentang])
-    .build();
-  simpan.push(aturan);
   sh.setConditionalFormatRules(simpan);
+}
 
-  return 'aturan "Jaminan merah" (>= Rp ' + BATAS_JAMINAN.toLocaleString('id-ID') +
-         ' tanpa jaminan) terpasang.';
+/**
+ * Warnai LANGSUNG kolom Jaminan (bukan lewat pemformatan bersyarat, biar pasti
+ * jalan). Merah = Kasbon >= batas tanpa jaminan. Dipakai saat setup (semua baris).
+ */
+function warnaiSemuaJaminan(sh, cfg) {
+  var kolJns = cariKolom(sh, cfg.barisJudul, cfg.judulJenis);
+  var kolNom = cariKolom(sh, cfg.barisJudul, cfg.judulNominal);
+  var kolJam = cariKolom(sh, cfg.barisJudul, cfg.judulJaminan);
+  if (!kolJns || !kolNom || !kolJam) {
+    return 'pewarnaan DILEWATI (ada kolom yang tidak ketemu).';
+  }
+
+  buangCFJaminan(sh, kolJam);   // hapus aturan lama yang bermasalah
+
+  var n   = cfg.barisAkhir - cfg.barisMulai + 1;
+  var jns = sh.getRange(cfg.barisMulai, kolJns, n, 1).getValues();
+  var nom = sh.getRange(cfg.barisMulai, kolNom, n, 1).getValues();
+  var sel = sh.getRange(cfg.barisMulai, kolJam, n, 1);
+  var jam = sel.getValues();
+  var bg  = sel.getBackgrounds();
+  var fc  = sel.getFontColors();
+
+  var jml = 0;
+  for (var i = 0; i < n; i++) {
+    if (langgarJaminan(jns[i][0], nom[i][0], jam[i][0])) {
+      bg[i][0] = WARNA_MERAH_BG; fc[i][0] = WARNA_MERAH_TXT; jml++;
+    } else {
+      bg[i][0] = null; fc[i][0] = null;   // kembalikan ke normal
+    }
+  }
+  sel.setBackgrounds(bg);
+  sel.setFontColors(fc);
+
+  return jml + ' baris Kasbon >= Rp ' + BATAS_JAMINAN.toLocaleString('id-ID') +
+         ' tanpa jaminan diberi warna merah.';
+}
+
+/** Warnai ulang kolom Jaminan hanya untuk baris r1..r2 (dipakai saat onEdit). */
+function warnaiJaminanBaris(sh, cfg, r1, r2) {
+  var kolJns = cariKolom(sh, cfg.barisJudul, cfg.judulJenis);
+  var kolNom = cariKolom(sh, cfg.barisJudul, cfg.judulNominal);
+  var kolJam = cariKolom(sh, cfg.barisJudul, cfg.judulJaminan);
+  if (!kolJns || !kolNom || !kolJam) return;
+
+  var n   = r2 - r1 + 1;
+  var jns = sh.getRange(r1, kolJns, n, 1).getValues();
+  var nom = sh.getRange(r1, kolNom, n, 1).getValues();
+  var sel = sh.getRange(r1, kolJam, n, 1);
+  var jam = sel.getValues();
+  var bg  = sel.getBackgrounds();
+  var fc  = sel.getFontColors();
+
+  for (var i = 0; i < n; i++) {
+    if (langgarJaminan(jns[i][0], nom[i][0], jam[i][0])) {
+      bg[i][0] = WARNA_MERAH_BG; fc[i][0] = WARNA_MERAH_TXT;
+    } else {
+      bg[i][0] = null; fc[i][0] = null;
+    }
+  }
+  sel.setBackgrounds(bg);
+  sel.setFontColors(fc);
 }
 
 
@@ -257,7 +295,17 @@ function onEdit(e) {
   var nama = sh.getName();
 
   for (var i = 0; i < KONFIG.length; i++) {
-    if (KONFIG[i].sheet === nama) { stempelTanggal(e, sh, KONFIG[i]); return; }
+    if (KONFIG[i].sheet === nama) {
+      var cfg = KONFIG[i];
+      stempelTanggal(e, sh, cfg);
+      // warnai ulang baris yang diedit (kalau sheet ini pakai aturan merah)
+      if (cfg.pasangMerah) {
+        var r1 = Math.max(e.range.getRow(), cfg.barisMulai);
+        var r2 = Math.min(e.range.getLastRow(), cfg.barisAkhir);
+        if (r2 >= r1) warnaiJaminanBaris(sh, cfg, r1, r2);
+      }
+      return;
+    }
   }
   if (KONFIG_KODE.sheet === nama) { stempelKode(e, sh, KONFIG_KODE); return; }
 }
