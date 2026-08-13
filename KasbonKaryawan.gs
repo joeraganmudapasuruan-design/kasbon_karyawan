@@ -9,7 +9,7 @@
  *   2. KALENDER (DATE PICKER) -> kolom Tanggal & Tgl Terima bisa diklik untuk
  *      memilih tanggal dari kalender.
  *   3. JAMINAN MERAH -> kolom "Jaminan" di MASTER INPUT jadi merah kalau ada
- *      Kasbon >= Rp 1.000.000 tanpa jaminan sementara hutangnya masih ada.
+ *      Kasbon >= Rp 1.000.000 yang jaminannya kosong / "-" / "Tidak Ada".
  *   4. KODE KARYAWAN OTOMATIS -> isi Nama karyawan baru di MASTER KARYAWAN,
  *      kolom "Kode" otomatis terisi K007, K008, ... (nilai tetap). Kode lama
  *      (K001-K006) TIDAK disentuh.
@@ -216,18 +216,9 @@ function pasangJaminanMerah(sh, cfg) {
   var top   = cfg.barisMulai;   // 6
   var bot   = cfg.barisAkhir;   // 500
 
-  // Merah bila: baris ini Kasbon, nominalnya >= batas, jaminan kosong/-/Tidak Ada,
-  // DAN total sisa hutang orang itu masih > 0.
-  var sisa = '(SUMIFS($' + LNom + '$' + top + ':$' + LNom + '$' + bot +
-             ',$' + LNama + '$' + top + ':$' + LNama + '$' + bot + ',$' + LNama + top +
-             ',$' + LJns + '$' + top + ':$' + LJns + '$' + bot + ',"Kasbon")' +
-             '-SUMIFS($' + LNom + '$' + top + ':$' + LNom + '$' + bot +
-             ',$' + LNama + '$' + top + ':$' + LNama + '$' + bot + ',$' + LNama + top +
-             ',$' + LJns + '$' + top + ':$' + LJns + '$' + bot + ',"Pembayaran"))';
-
+  // Merah bila: baris ini Kasbon, nominalnya >= batas, dan jaminan kosong/-/Tidak Ada.
   var formula = '=AND($' + LJns + top + '="Kasbon",$' + LNom + top + '>=' + BATAS_JAMINAN +
-                ',OR($' + LJam + top + '="",$' + LJam + top + '="-",$' + LJam + top + '="Tidak Ada")' +
-                ',' + sisa + '>0)';
+                ',OR($' + LJam + top + '="",$' + LJam + top + '="-",$' + LJam + top + '="Tidak Ada"))';
 
   var rentang = sh.getRange(top, kolJam, bot - top + 1, 1);
 

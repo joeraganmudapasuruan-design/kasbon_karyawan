@@ -7,7 +7,7 @@ File: **`KasbonKaryawan.gs`** — tempel ke Apps Script (Ekstensi > Apps Script)
 ## Fitur
 1. **Tanggal otomatis** — isi Nama di `MASTER INPUT` → kolom *Tanggal* terisi tanggal hari ini (nilai tetap). Sama untuk *Tgl Terima* di `JAMINAN`.
 2. **Kalender (date picker)** — kolom *Tanggal* & *Tgl Terima* bisa diklik untuk pilih tanggal.
-3. **Jaminan merah** — kolom *Jaminan* di `MASTER INPUT` jadi merah bila ada **Kasbon ≥ Rp 1.000.000 tanpa jaminan** selama hutangnya masih ada.
+3. **Jaminan merah** — kolom *Jaminan* di `MASTER INPUT` jadi merah bila ada **Kasbon ≥ Rp 1.000.000** yang jaminannya kosong / "-" / "Tidak Ada".
 4. **Kode karyawan otomatis** — isi nama baru di `MASTER KARYAWAN` → kolom *Kode* terisi `K007`, `K008`, … (nilai tetap). Kode lama `K001`–`K006` tidak diubah.
 
 ## Pasang (sekali saja)
